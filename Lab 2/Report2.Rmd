@@ -1,3 +1,8 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
 <!-- ---
 title: 'Statistical Lab 1 (Matrix Algebra with R) '
 author: "Jiwan Bhandari"
@@ -16,33 +21,136 @@ vignette: |
 </div>
 
 ```{r setup, include=FALSE}
+library(ggplot2)
 knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
 ```
 
 #### Dataset
-For this excerise we generate our own sample data.  We first generate $1000*2$ matrix *N*  of standard random normal variables. We then generate $1000*3$ matrix *C* using linear combination of the columns of *N*.
+For this exercise we generate our own sample data.  We first generate $1000*2$ matrix *N*  of standard random normal variables. We then generate $1000*3$ matrix *C* by linearly transforming the columns of *N* by matrix *L*. 
+$$\mathbf{L}=
+\begin{bmatrix}
+1&1&2\\1&-1&3
+\end{bmatrix}
+$$
 
 ```{r echo =TRUE}
    set.seed(c(123,233))
-   N <- data.frame(x=rnorm(1000,mean=0,sd=1),y=rnorm(1000,mean=0,sd=1))
-   C <- data.frame(c1=N$x+N$y,c2=N$x-N$y,c3=2*N$x+3*N$y)
+   rows<-1000
+   cols<-2
+   x<-rnorm(rows,mean=0,sd=1)
+   y<-rnorm(rows,mean=0,sd=1)
+   N <- matrix(c(x,y), nrow =rows, ncol = cols)
+   L <- matrix(c(1,1,2,1,-1,3), nrow = 2, ncol = 3)
+   C <-  N %*% L
 ``` 
 
 #### Generalized Variance 
-The generalized variance  of a p-dimensional random vector variable X is defined as the determinant of its variance-covariance matrix.Below we calculate the generalized variance of C. 
+The generalized variance  of a p-dimensional random vector variable X is defined as the determinant of its variance-covariance matrix. Generalized variance provides one way of writing the information on variances and co-variances as a single number. Below we calculate the generalized variance of C. 
 ```{r echo=TRUE}
     cov_mat <- cov(C)
     S <- det(cov_mat)
     print(round(S,3))
 ```
 The generalized variance of matrix C is 0 which suggest that the observations in C aren't linearly independent. 
+
 #### Spectral Decomposition To Find  Linearly Dependent Columns
 Spectral Decomposition of a $k*k$symmetric matrix   $A$ allows us to represent $A$ in terms of it's eigen values and orthogonal eigen vectors.
-$$A= \mathbf{\sum_{i=1}^{k}{\lambda_ie_ie_i'}} $$. Below do the spectral decompositon of variance-covariance matrix of $C$ and find the linearly dependent columns of $C$ based on the spectral decomposition. 
+$$A= \mathbf{\sum_{i=1}^{k}{\lambda_ie_ie_i'}} $$ Below, we perform the spectral decompositon of  variance-covariance matrix of $C$ and try to find the linearly dependent columns of $C$ based on eigen values and vectors. 
 ```{r pressure, echo=TRUE}
-  E<- eigen(cov_mat)
-  
+  e<- eigen(cov_mat)
+```
+The eigen values of $C$ are $\lambda_1=$ `r round(e$values[1],2)`, $\lambda_2=$ `r round(e$values[2],2)` & $\lambda_3=$ `r round(e$values[3],2)`.  We see that one of eigen values ($\lambda_{3}$) of $C$ is $0$. Following is one of eigen vectors associated $\lambda_3$.
+$$\mathbf{e_3}=\begin{bmatrix}
+`r paste(round(e$vectors[,3],2), collapse = "&") `
+\end{bmatrix}$$
+The eigen value $\lambda_3=0$ tells us that the third column($c_3$)of the matrix $C$ is linearly dependent column on ther columns. Theoritically for a set of vectors $[c_1,c_2...C_n]$ to be linearly dependent we must have a set of coefficients $[a_1,a_2,.....a_n]$ such that $a_1*c_1 + a_2*c_2+....a_n*c_n =0$ where at least one of $a_i≠0$. In the following lines of code we check whether the eigen vector $e_3$ is infact the set of such coefficients.
 
+```{r echo=TRUE}
+   all(round(C%*%e$vectors[,3],5)==0)
+```
+As we can see from the result above, $e_3$ infact serves as the set of coefficients $[a_1,a_2,.....a_n]$. This shows that the set columns ($c_1,c_2,c_3$) of $C$ are linearly dependent. Below, we show this using a plot.
+
+``` {r fig.show='hold'}
+    ggplot()+
+    geom_point(data=data.frame(y=C%*%e$vectors[,1]), aes(x=1:rows,y=y),size=3,color= "blue")+
+    geom_point(data=data.frame(y=C%*%e$vectors[,3]), aes(x=1:rows,y=y),size=3,color="red")+
+    xlab("Count")+
+    ylab("C*e")
+```
+$$\\$$
+As evident by the red uniform red line in the graph, the columns of $C$ are linearly dependent and the coefficients that show this linear dependence are the components of the eigen vector $e_3.$
+
+#### Multivariate normal random variables.
+Multivariate normal distribution arises form the linear transformation of independent normal variables. It is the generalization of the univariate normal density to two or more dimensions. Multivariate normal probability density function is as follows.
+$$ f(X) = \frac{1}{{2\pi}^{p/2}|\Sigma|^{1/2}} e^\frac{-(X-\mu)\Sigma^{-1}(X-\mu)}{2}$$
+Below, we first generate bivariate normal dataset of $1000 * 2$ with the following parameters $$\mu=[0\ 0] , \  \mathbf{\Sigma} =
+    \begin{bmatrix}
+     12&4\\
+     4&5
+    \end{bmatrix}
+$$
+```{r echo =TRUE}
+   n<-1000
+   set.seed(c(229,129))
+   X <- mvrnorm(n,mu=c(0,0),Sigma = matrix(c(12,4,4,5),2,2))
+```
+Now, we transform the above dataset $X$ into bivariate standard normally distributed dataset Z. The linear combination required to transform the dataset is given by the following equation.
+ $$Z = (X-\mu)V^{-\frac{1}{2}}\ where \ V^{1/2} \ is \ the\ standard \ deviation\ matrix.$$
+```{r echo = TRUE}
+    cov_mat <- matrix(c(12,4,4,5),2,2)
+    mu <- c(0,0)
+    V <- sqrt(cov_mat * diag(2))
+    V_INV <- solve(V)
+    Z<- (X-mu)%*%V_INV
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+#### Multivariate Normality Test
+In the following section we do the multivariate normality test. For the following section we use a different dataset. First, we generate a dataset $X$ of size $500*3$ that has the following distribution parameters.
+$$\mu = [0 \ 0\ 0] , \ \mathbf{\Sigma}= 
+\begin{bmatrix}
+  10&4&1\\
+  4&5&4\\
+  1&4&10
+\end{bmatrix}
+$$
+
+```{r echo = TRUE}
+    n<-500  
+    mu <- c(0,0,0)
+    Sigma <- matrix(c(10,4,1,4,5,4,1,4,10),3,3)
+    set.seed(c(100,110,320))
+    X <- mvrnorm(n,mu=mu,Sigma = Sigma)
+```
+
+If a multivariate random variable $\mathbf{X}$ has a normal distribution $N_p(\mu,\Sigma)$, then the expression $(X-\mu)'\Sigma^{-1}(X-\mu)$ represents square of distance of $X$ from $\mu$ which is called the generalized statistical distance. One property of statistical distance is that it has chi-squared distribution. $$(X-\mu)\Sigma^{-1}(X-\mu)\sim \chi^{2}_p $$
+Below we calculate the statistical distance $d$ of each observation and test whether $d$ follows $\chi^{2}_p$.
+```{r echo=TRUE}
+    df<-3
+    Sigma_inv<-solve(cov(X))
+    XS <- sweep(X,2,colMeans(X))
+    d = rowSums(XS%*%Sigma_inv*XS)
+    testResult<-ks.test(d,"pchisq",df)
+```
+The Kolmogorov-Smirnov test resulted in the test statistics of $D=`r round(testResult$statistic,3)`$  and $p-value=`r round(testResult$p.value,3)`$. The $p-value$ is greater than any common levels of significances ($\alpha$) thus we fail to reject the null hypothesis of the KS test, meaning that the statistical distances have chi-square distances, further meaning the data is normally distributed.  The plot below show's this normality relation.
+```{r echo=FALSE}
+  ggplot()+stat_qq(aes(sample=d),distribution ="qchisq",dparams = 3 )+geom_segment(aes(x=0,y=0,xend=15,yend=15),color="red")
+```
+
+#### MultiVariate Normality Test After Non-Linear Transformation
+
+In the following part we test whether non-linear transformation of multivariate random variable $X$ preserves normality. In particular, we apply the transformation $Y\rightarrow f(X^3)$ and apply a formal test to see if $Y$ is still normal.
+
+```{r echo=TRUE}
+   Y <- X^3    
+   YS <- sweep(Y,2,colMeans(Y))
+   Sigma_inv <- solve(cov(Y))
+   d = rowSums(YS%*%Sigma_inv*YS)
+   testResult<-ks.test(d,"pchisq",df)
+```
+The Kolmogorov-Smirnov test resulted in the test statistics of $D=`r round(testResult$statistic,3)`$  and $p-value=`r round(testResult$p.value,3)`$. The $p-value$ is 0 thus we reject the null hypothesis of the KS test, meaning that the statistical distances don't have chi-square distances, further meaning the data isn't normally distributed. The following quantile plot shows this non-normality.
+```{r echo=FALSE}
+  ggplot()+stat_qq(aes(sample=d),distribution ="qchisq",dparams = 3 )+geom_segment(aes(x=0,y=0,xend=15,yend=15),color="red")
+```
+
+
